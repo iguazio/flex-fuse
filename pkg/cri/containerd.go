@@ -231,7 +231,12 @@ func (c *Containerd) createContainer(image string,
 
 		// pull the v3io-fuse image
 		// [IG-23016] MountVolume.SetUp failed for volume storage in k8s 1.29
-		cmd := exec.Command("/usr/local/bin/ctr", "-n", "k8s.io", "images", "pull", "--hosts-dir", "/etc/containerd/certs.d/", image)
+		var cmd *exec.Cmd
+		if strings.Contains(image, ":80/") {
+			cmd = exec.Command("/usr/local/bin/ctr", "-n", "k8s.io", "images", "pull", "--plain-http", image)
+		} else {
+			cmd = exec.Command("/usr/local/bin/ctr", "-n", "k8s.io", "images", "pull", "--hosts-dir", "/etc/containerd/certs.d/", image)
+		}
 		output, err := cmd.CombinedOutput()
 		// Handle errors
 		if err != nil {
