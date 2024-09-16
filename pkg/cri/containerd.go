@@ -230,10 +230,19 @@ func (c *Containerd) createContainer(image string,
 			"image", image)
 
 		// pull the v3io-fuse image
-		v3ioFUSEImage, err = c.containerdClient.Pull(c.containerdContext,
-			image,
-			containerd.WithPullUnpack)
+		// [IG-23016] MountVolume.SetUp failed for volume storage in k8s 1.29
+		cmd := exec.Command("/usr/local/bin/ctr", "-n", "k8s.io", "images", "pull", "--hosts-dir", "/etc/containerd/certs.d/", image)
+		output, err := cmd.CombinedOutput()
+		// Handle errors
 		if err != nil {
+			journal.Error("Failed pulling", "containerName", containerName, "image", image, "error", err, "command output", string(output))
+			return nil, err
+		}
+		v3ioFUSEImage, err = c.containerdClient.GetImage(c.containerdContext, image)
+		if err != nil {
+			journal.Error("Failed to pull image",
+				"containerName", containerName,
+				"image", image)
 			return nil, err
 		}
 	}
