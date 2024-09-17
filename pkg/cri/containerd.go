@@ -24,6 +24,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"os"
 	"os/exec"
 	"path"
 	"strconv"
@@ -231,7 +232,23 @@ func (c *Containerd) createContainer(image string,
 
 		// pull the v3io-fuse image
 		// [IG-23016] MountVolume.SetUp failed for volume storage in k8s 1.29
-		cmd := exec.Command("/usr/local/bin/ctr", "-n", "k8s.io", "images", "pull", "--hosts-dir", "/etc/containerd/certs.d/", image)
+
+		var ctrPath string
+
+		// Check if "/usr/local/bin/ctr" exists
+		if _, err := os.Stat("/usr/local/bin/ctr"); err == nil {
+			ctrPath = "/usr/local/bin/ctr"
+		} else if _, err := os.Stat("/usr/bin/ctr"); err == nil {
+			ctrPath = "/usr/bin/ctr"
+		} else {
+			// Return an error if neither file exists
+			journal.Error("Failed to pull image: ctr not found",
+				"containerName", containerName,
+				"image", image)
+			return nil, err
+		}
+
+		cmd := exec.Command(ctrPath, "-n", "k8s.io", "images", "pull", "--hosts-dir", "/etc/containerd/certs.d/", image)
 		output, err := cmd.CombinedOutput()
 		// Handle errors
 		if err != nil {
