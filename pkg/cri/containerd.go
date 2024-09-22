@@ -232,15 +232,19 @@ func (c *Containerd) createContainer(image string,
 
 		// pull the v3io-fuse image
 		// [IG-23016] MountVolume.SetUp failed for volume storage in k8s 1.29
+		//
 
+		var err error
+
+		// Get path to ctr
 		var ctrPath string
-
-		// Check if "/usr/local/bin/ctr" exists
-		if _, err := os.Stat("/usr/local/bin/ctr"); err == nil {
+		if ctrPath, err = exec.LookPath("ctr"); err == nil {
+		} else if _, err = os.Stat("/usr/local/bin/ctr"); err == nil {
 			ctrPath = "/usr/local/bin/ctr"
-		} else if _, err := os.Stat("/usr/bin/ctr"); err == nil {
+		} else if _, err = os.Stat("/usr/bin/ctr"); err == nil {
 			ctrPath = "/usr/bin/ctr"
-		} else {
+		}
+		if err != nil {
 			// Return an error if neither file exists
 			journal.Error("Failed to pull image: ctr not found",
 				"containerName", containerName,
@@ -248,7 +252,27 @@ func (c *Containerd) createContainer(image string,
 			return nil, err
 		}
 
-		cmd := exec.Command(ctrPath, "-n", "k8s.io", "images", "pull", "--hosts-dir", "/etc/containerd/certs.d/", image)
+		// Check if AWS CLI is installed
+		var cmd *exec.Cmd
+		var awsPath string
+
+		if awsPath, err = exec.LookPath("aws"); err == nil {
+			// Get ECR password
+			cmd = exec.Command(awsPath, "ecr", "get-login-password", "--region", "us-east-2")
+			ecrPasswordBytes, err := cmd.Output()
+			if err != nil {
+				// Return an error if neither file exists
+				journal.Error("Failed to pull image: Error retrieving ECR password",
+					"containerName", containerName,
+					"image", image)
+				return nil, err
+			}
+			ecrPassword := strings.TrimSpace(string(ecrPasswordBytes))
+			cmd = exec.Command(ctrPath, "-n", "k8s.io", "images", "pull", "--user", fmt.Sprintf("AWS:%s", ecrPassword), image)
+		} else {
+			cmd = exec.Command(ctrPath, "-n", "k8s.io", "images", "pull", "--hosts-dir", "/etc/containerd/certs.d/", image)
+		}
+
 		output, err := cmd.CombinedOutput()
 		// Handle errors
 		if err != nil {
