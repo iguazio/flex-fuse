@@ -1,0 +1,41 @@
+name: sonar scan
+# Retrieve project token from https://sonarqube-dev.mckinsey.com/ > select project > project information > project key
+# Controls when the workflow will run
+on:
+  push:
+    branches: [ main , development ]
+  pull_request:
+    branches: [ main , development ]
+
+jobs:
+  sonar_scan:
+    runs-on: [ self-hosted, Linux ]
+    env:
+      SONAR_TOKEN: ${{ secrets.MCK_SONARQUBE_ANALYSIS_API }}
+      SONAR_HOST_URL: "https://sonarqube-dev.mckinsey.com/"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@master
+      - if: ${{ github.base_ref == null }}
+        name: Sonar Scan
+        run: |
+          docker run -i --user `id -u` --rm -e SONAR_TOKEN -e SONAR_HOST_URL \
+          -v `pwd`:/app -w /app sonarsource/sonar-scanner-cli:5.0.1 \
+            -Dsonar.projectKey=iguazio_flex-fuse_f221ea55-6a8d-4f23-8b8e-025a541a123a \
+            -Dsonar.sources=./ -Dsonar.branch.name=`echo "${{ github.ref }}" | cut -b 12-` \
+            -Dsonar.qualitygate.wait=false
+      - if: ${{ github.base_ref != null }}
+        name: Sonar Scan on PR
+        env:
+          pr_key: ${{ github.event.number }}
+          pr_branch: ${{ github.head_ref }}
+          pr_base: ${{ github.base_ref }}
+        run: |
+          docker run -i --user `id -u` --rm -e SONAR_TOKEN -e SONAR_HOST_URL \
+          -v `pwd`:/app -w sonarsource/sonar-scanner-cli:5.0.1 \
+            -Dsonar.projectKey=iguazio_flex-fuse_f221ea55-6a8d-4f23-8b8e-025a541a123a \
+            -Dsonar.sources=./ \
+            -Dsonar.pullrequest.key="$pr_key" \
+            -Dsonar.pullrequest.branch="$pr_branch" \
+            -Dsonar.pullrequest.base="$pr_base" \
+            -Dsonar.qualitygate.wait=false 
