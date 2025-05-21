@@ -32,7 +32,7 @@ jobs:
           pr_base: ${{ github.base_ref }}
         run: |
           docker run -i --user `id -u` --rm -e SONAR_TOKEN -e SONAR_HOST_URL \
-          -v `pwd`:/app -w sonarsource/sonar-scanner-cli:5.0.1 \
+          -v `pwd`:/app -w /app sonarsource/sonar-scanner-cli:5.0.1 \
             -Dsonar.projectKey=iguazio_flex-fuse_f221ea55-6a8d-4f23-8b8e-025a541a123a \
             -Dsonar.sources=./ \
             -Dsonar.pullrequest.key="$pr_key" \
